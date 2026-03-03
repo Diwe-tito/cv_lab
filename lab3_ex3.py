@@ -12,15 +12,14 @@ if img is None:
 # Convert BGR (OpenCV default) → RGB (for correct plotting)
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+mask = (img[:,:,0] > 150) & \
+       (img[:,:,1] < 100) & \
+       (img[:,:,2] < 100)
+
 # Create empty output image
-new_img = np.zeros(img.shape, np.uint8)
+new_img = np.zeros_like(img)
+new_img[mask] = [255, 0, 0]
 
-for i in range(img.shape[0]):
-    for j in range(img.shape[1]):
-
-        # If red channel is very high
-        if img[i,j,0] > 150 and img[i,j,1] < 100 and img[i,j,2] < 100:
-           new_img[i,j] = [255, 0, 0]
 
 plt.figure(figsize=(10,4))
 
