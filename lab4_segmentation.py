@@ -4,7 +4,7 @@ import numpy as np
 # -----------------------------
 # 1. Load Image
 # -----------------------------
-img = cv2.imread("coins_02_800.jpg")
+img = cv2.imread("coins_01_800.jpg")
 
 if img is None:
     print("Image not found")
@@ -31,74 +31,60 @@ kernel = np.ones((3,3), np.uint8)
 binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
 binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
 
+# Smooth edges slightly
+binary = cv2.GaussianBlur(binary, (5,5), 0)
+
+# Re-threshold to make sure image is binary again
+_, binary = cv2.threshold(binary, 127, 255, cv2.THRESH_BINARY)
 # -----------------------------
-# 4. Watershed Segmentation
+# get contours
 # -----------------------------
-
-# Sure background
-sure_bg = cv2.dilate(binary, kernel, iterations=3)
-
-# Distance transform (find coin centers)
-dist_transform = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
-
-# Threshold for sure foreground (0.20 worked best for you)
-_, sure_fg = cv2.threshold(
-    dist_transform,
-    0.20 * dist_transform.max(),
-    255,
-    0
+contours, _ = cv2.findContours(
+    binary,
+    cv2.RETR_EXTERNAL,
+    cv2.CHAIN_APPROX_SIMPLE
 )
 
-sure_fg = np.uint8(sure_fg)
-
-# Unknown region
-unknown = cv2.subtract(sure_bg, sure_fg)
-
-# Marker labelling
-_, markers = cv2.connectedComponents(sure_fg)
-
-markers = markers + 1
-markers[unknown == 255] = 0
-
-# Apply watershed
-markers = cv2.watershed(img, markers)
-
-# -----------------------------
-# 5. Extract and Count Coins
-# -----------------------------
 output = img.copy()
 coin_count = 0
 
-for label in np.unique(markers):
+output = img.copy()
+coin_count = 0
 
-    # Skip background and boundary
-    if label <= 1:
-        continue
+for i, cnt in enumerate(contours):
 
-    mask = np.zeros(binary.shape, dtype="uint8")
-    mask[markers == label] = 255
+    area = cv2.contourArea(cnt)
 
-    contours, _ = cv2.findContours(
-        mask,
-        cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE
-    )
+    if area > 3000:
 
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
+        perimeter = cv2.arcLength(cnt, True)
 
-        # Filter very small regions
-        if area > 3000:
+        circularity = (4 * np.pi * area) / (perimeter ** 2)
+
+        if circularity > 0.75:
+
             coin_count += 1
+
+            M = cv2.moments(cnt)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                cx, cy = 0, 0
+
             cv2.drawContours(output, [cnt], -1, (0,255,0), 2)
+            cv2.circle(output, (cx, cy), 5, (0,0,255), -1)
 
-print("Number of coins detected:", coin_count)
+            print(f"Coin {coin_count}")
+            print(f"  Area: {area}")
+            print(f"  Perimeter: {perimeter}")
+            print(f"  Circularity: {circularity:.3f}")
+            print(f"  Centroid: ({cx}, {cy})")
+            print("")
 
-# -----------------------------
-# 6. Show Results
-# -----------------------------
-cv2.imshow("Binary Mask", binary)
-cv2.imshow("Segmented Coins", output)
+print("Total coins detected:", coin_count)
 
+cv2.imshow("Coin Properties", output)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
+
