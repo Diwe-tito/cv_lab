@@ -2,89 +2,108 @@ import cv2
 import numpy as np
 
 # -----------------------------
-# 1. Load Image
+# 1. Load image
 # -----------------------------
-img = cv2.imread("coins_01_800.jpg")
+img = cv2.imread("coins_02_800.jpg")
 
 if img is None:
     print("Image not found")
     exit()
 
-# -----------------------------
-# 2. Convert to HSV
-# -----------------------------
-hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-# Detect blue background
-lower_blue = np.array([90, 50, 50])
-upper_blue = np.array([140, 255, 255])
-background_mask = cv2.inRange(hsv, lower_blue, upper_blue)
-
-# Invert mask so coins become white
-binary = cv2.bitwise_not(background_mask)
+output = img.copy()
 
 # -----------------------------
-# 3. Clean Binary Image
+# 2. Convert to grayscale
 # -----------------------------
-kernel = np.ones((3,3), np.uint8)
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
-binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
-
-# Smooth edges slightly
-binary = cv2.GaussianBlur(binary, (5,5), 0)
-
-# Re-threshold to make sure image is binary again
-_, binary = cv2.threshold(binary, 127, 255, cv2.THRESH_BINARY)
 # -----------------------------
-# get contours
+# 3. Otsu threshold
 # -----------------------------
-contours, _ = cv2.findContours(
-    binary,
-    cv2.RETR_EXTERNAL,
+threshold, img_thresh = cv2.threshold(
+    gray,
+    0,
+    255,
+    cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+)
+
+# -----------------------------
+# 4. Morphological operations
+# -----------------------------
+strel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
+
+# remove noise
+img_eroded = cv2.erode(img_thresh, strel, iterations=1)
+
+# restore shape
+img_clean = cv2.dilate(img_eroded, strel, iterations=2)
+
+# -----------------------------
+# 5. Find contours
+# -----------------------------
+contours, hierarchy = cv2.findContours(
+    img_clean,
+    cv2.RETR_CCOMP,
     cv2.CHAIN_APPROX_SIMPLE
 )
 
-output = img.copy()
+# -----------------------------
+# 6. Count coins
+# -----------------------------
 coin_count = 0
 
-output = img.copy()
-coin_count = 0
+fcoin_count = 0
 
-for i, cnt in enumerate(contours):
+for cnt in contours:
 
     area = cv2.contourArea(cnt)
 
-    if area > 3000:
+    if area > 800:
 
-        perimeter = cv2.arcLength(cnt, True)
+        coin_count += 1
 
-        circularity = (4 * np.pi * area) / (perimeter ** 2)
+        # centroid
+        m = cv2.moments(cnt)
+        cx = int(m["m10"]/m["m00"])
+        cy = int(m["m01"]/m["m00"])
 
-        if circularity > 0.75:
+        # classify by area
+        if area < 2000:
+            coin_type = "5p / small"
+        elif area < 3500:
+            coin_type = "10p"
+        elif area < 5000:
+            coin_type = "20p / 50p"
+        else:
+            coin_type = "£1 / large"
 
-            coin_count += 1
+        # draw contour
+        cv2.drawContours(output,[cnt],-1,(0,255,0),2)
 
-            M = cv2.moments(cnt)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-            else:
-                cx, cy = 0, 0
+        # draw label
+        cv2.putText(
+            output,
+            coin_type,
+            (cx-30, cy),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0,0,255),
+            1
+        )
 
-            cv2.drawContours(output, [cnt], -1, (0,255,0), 2)
-            cv2.circle(output, (cx, cy), 5, (0,0,255), -1)
+print("Coins detected:", coin_count)
 
-            print(f"Coin {coin_count}")
-            print(f"  Area: {area}")
-            print(f"  Perimeter: {perimeter}")
-            print(f"  Circularity: {circularity:.3f}")
-            print(f"  Centroid: ({cx}, {cy})")
-            print("")
+# -----------------------------
+# 7. Display images
+# -----------------------------
+cv2.imshow("Original", img)
+cv2.imshow("Threshold", img_thresh)
+cv2.imshow("Clean Mask", img_clean)
+cv2.imshow("Detected Coins", output)
 
-print("Total coins detected:", coin_count)
+# press q to close
+while True:
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-cv2.imshow("Coin Properties", output)
-cv2.waitKey(0)
 cv2.destroyAllWindows()
-
