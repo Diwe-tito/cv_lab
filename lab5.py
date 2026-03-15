@@ -1,9 +1,10 @@
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 # -----------------------------
-# Function provided by the lab
+# get_stats function (same as before)
 # -----------------------------
 def get_stats(roi, L=256):
 
@@ -36,55 +37,55 @@ def get_stats(roi, L=256):
 
 
 # -----------------------------
-# 1. Load image
+# Load image
 # -----------------------------
 img = cv2.imread("satellite.png")
-
-if img is None:
-    print("Image not found")
-    exit()
-
-
-# -----------------------------
-# 2. Convert to grayscale
-# -----------------------------
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 
 # -----------------------------
-# 3. Define ROI
+# Define TWO ROIs
 # -----------------------------
-x1, y1 = 300, 200
-x2, y2 = 450, 350
-
-roi = gray[y1:y2, x1:x2]
+roi1 = gray[200:350, 300:450]   # example: forest
+roi2 = gray[400:550, 500:650]   # example: field
 
 
-# -----------------------------
-# 4. Draw ROI on original image
-# -----------------------------
-cv2.rectangle(img, (x1, y1), (x2, y2), (0,255,0), 2)
+# Draw rectangles
+cv2.rectangle(img,(300,200),(450,350),(0,255,0),2)
+cv2.rectangle(img,(500,400),(650,550),(255,0,0),2)
 
 
 # -----------------------------
-# 5. Calculate statistics
+# Calculate statistics
 # -----------------------------
-stats = get_stats(roi)
+stats1 = get_stats(roi1)
+stats2 = get_stats(roi2)
 
-print("Mean:", stats[0])
-print("Variance:", stats[1])
-print("R:", stats[2])
-print("Skewness:", stats[3])
-print("Flatness:", stats[4])
-print("Uniformity:", stats[5])
-print("Entropy:", stats[6])
+print("\nRegion 1 Stats")
+print(stats1)
+
+print("\nRegion 2 Stats")
+print(stats2)
 
 
 # -----------------------------
-# 6. Display image
+# Show histograms
 # -----------------------------
-cv2.imshow("Image with ROI", img)
-cv2.imshow("ROI", roi)
+cv2.imshow("Image with ROIs", img)
+cv2.imshow("ROI 1", roi1)
+cv2.imshow("ROI 2", roi2)
+
+plt.figure(figsize=(10,4))
+
+plt.subplot(1,2,1)
+plt.hist(roi1.ravel(),256,[0,256])
+plt.title("ROI 1 Histogram")
+
+plt.subplot(1,2,2)
+plt.hist(roi2.ravel(),256,[0,256])
+plt.title("ROI 2 Histogram")
+
+plt.show()
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
