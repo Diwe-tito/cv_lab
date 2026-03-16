@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 # -----------------------------
@@ -37,76 +36,83 @@ def get_stats(roi, L=256):
 
 
 # -----------------------------
+# classify function
+# -----------------------------
+def classify_region(test_stats, ref1_stats, ref2_stats):
+    d1 = abs(test_stats[0] - ref1_stats[0]) + \
+         abs(test_stats[1] - ref1_stats[1]) + \
+         abs(test_stats[6] - ref1_stats[6])
+
+    d2 = abs(test_stats[0] - ref2_stats[0]) + \
+         abs(test_stats[1] - ref2_stats[1]) + \
+         abs(test_stats[6] - ref2_stats[6])
+
+    if d1 < d2:
+        return 1
+    else:
+        return 2
+
+
+# -----------------------------
 # Load image
 # -----------------------------
 img = cv2.imread("satellite.png")
+
+if img is None:
+    print("Image not found")
+    exit()
+
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-
 # -----------------------------
-# Define 3 ROIs
+# Reference ROIs
 # -----------------------------
-roi1 = gray[200:350, 300:450]   # Region 1
-roi2 = gray[400:550, 500:650]   # Region 2
-roi3 = gray[100:250, 600:750]   # Region 3 (test region)
+roi1 = gray[200:350, 300:450]   # texture class 1
+roi2 = gray[400:550, 500:650]   # texture class 2
 
-# Draw rectangles
-cv2.rectangle(img, (300,200), (450,350), (0,255,0), 2)   # green
-cv2.rectangle(img, (500,400), (650,550), (255,0,0), 2)   # blue
-cv2.rectangle(img, (600,100), (750,250), (0,0,255), 2)   # red
-
-
-# -----------------------------
-# Calculate statistics
-# -----------------------------
 stats1 = get_stats(roi1)
 stats2 = get_stats(roi2)
-stats3 = get_stats(roi3)
-
-print("\nRegion 1 Stats:", stats1)
-print("Region 2 Stats:", stats2)
-print("Region 3 Stats:", stats3)
-
 
 # -----------------------------
-# Compare Region 3 to Region 1 and Region 2
-# Using mean, variance, entropy
+# Output image for texture map
 # -----------------------------
-d13 = abs(stats3[0] - stats1[0]) + abs(stats3[1] - stats1[1]) + abs(stats3[6] - stats1[6])
-d23 = abs(stats3[0] - stats2[0]) + abs(stats3[1] - stats2[1]) + abs(stats3[6] - stats2[6])
+texture_map = img.copy()
 
-print("\nDistance from Region 3 to Region 1:", d13)
-print("Distance from Region 3 to Region 2:", d23)
-
-if d13 < d23:
-    print("Region 3 is more similar to Region 1")
-else:
-    print("Region 3 is more similar to Region 2")
-
+# ROI size and stride
+roi_size = 80
+stride = 40
 
 # -----------------------------
-# Show image and histograms
+# Scan across image
 # -----------------------------
-cv2.imshow("Image with 3 ROIs", img)
+for y in range(0, gray.shape[0] - roi_size, stride):
+    for x in range(0, gray.shape[1] - roi_size, stride):
+
+        roi = gray[y:y+roi_size, x:x+roi_size]
+        stats = get_stats(roi)
+
+        label = classify_region(stats, stats1, stats2)
+
+        if label == 1:
+            # Region similar to ROI 1 → green
+            cv2.rectangle(texture_map, (x, y), (x+roi_size, y+roi_size), (0,255,0), 1)
+        else:
+            # Region similar to ROI 2 → red
+            cv2.rectangle(texture_map, (x, y), (x+roi_size, y+roi_size), (0,0,255), 1)
+
+# Draw original reference ROIs
+cv2.rectangle(texture_map, (300,200), (450,350), (0,255,0), 2)
+cv2.rectangle(texture_map, (500,400), (650,550), (255,0,0), 2)
+
+# -----------------------------
+# Show results
+# -----------------------------
+cv2.imshow("Texture Map", texture_map)
 cv2.imshow("ROI 1", roi1)
 cv2.imshow("ROI 2", roi2)
-cv2.imshow("ROI 3", roi3)
 
-plt.figure(figsize=(12,4))
+while True:
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-plt.subplot(1,3,1)
-plt.hist(roi1.ravel(), 256, [0,256])
-plt.title("ROI 1 Histogram")
-
-plt.subplot(1,3,2)
-plt.hist(roi2.ravel(), 256, [0,256])
-plt.title("ROI 2 Histogram")
-
-plt.subplot(1,3,3)
-plt.hist(roi3.ravel(), 256, [0,256])
-plt.title("ROI 3 Histogram")
-
-plt.show()
-
-cv2.waitKey(0)
 cv2.destroyAllWindows()
